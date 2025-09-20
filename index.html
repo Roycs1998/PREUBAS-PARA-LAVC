@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emulador 3D de Stands – Compra y Subasta</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #151924;
+      --muted: #9aa4b2;
+      --text: #e6e9ef;
+      --accent: #6ae3ff;
+      --ok: #20c997;
+      --warn: #f4bf4f;
+      --bad: #ff6b6b;
+      --auction: #c084fc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      height: 100vh;
+      gap: 0;
+      border-left: 1px solid #222;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      background: radial-gradient(circle at top, rgba(60, 80, 120, 0.16), transparent 55%),
+        linear-gradient(#0c0f16, #0b0e14);
+    }
+
+    #ui {
+      background: var(--panel);
+      border-left: 1px solid #222;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 16px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      letter-spacing: 0.3px;
+    }
+
+    header .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #0d253a;
+      color: var(--accent);
+      border: 1px solid #113046;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .panel {
+      padding: 16px;
+      overflow: auto;
+      flex: 1 1 auto;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .kv {
+      background: #0f1320;
+      border: 1px solid #1b2231;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .kv label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .kv div {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 4px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #2a2f3a;
+      padding: 6px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(21, 27, 38, 0.75);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .section {
+      margin: 12px 0 6px;
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9fb0ff;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 10px 0;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: 1px solid #2a2f3a;
+      background: #171b26;
+      color: #e6e9ef;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: transform 0.18s ease, filter 0.18s ease;
+    }
+
+    .btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #2c7be5, #1d5cc3);
+      border-color: #2656a5;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: #2a2f3a;
+    }
+
+    .buy {
+      background: linear-gradient(180deg, #20c997, #139a74);
+      border-color: #107a5d;
+    }
+
+    .auction {
+      background: linear-gradient(180deg, #c084fc, #8b5cf6);
+      border-color: #7c3aed;
+    }
+
+    .disabled {
+      opacity: 0.45;
+      pointer-events: none;
+      filter: saturate(0.4);
+    }
+
+    #toast {
+      position: absolute;
+      inset: auto 16px 16px auto;
+      background: #111826;
+      border: 1px solid #273043;
+      padding: 10px 14px;
+      border-radius: 10px;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      font-size: 12px;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      padding: 20px;
+    }
+
+    .modal {
+      width: min(520px, 92vw);
+      background: #0f1320;
+      border: 1px solid #243047;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    }
+
+    .modal header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1b2438;
+      padding: 14px 16px;
+    }
+
+    .modal .content {
+      padding: 16px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 10px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    input,
+    select {
+      background: #0c111b;
+      border: 1px solid #1e2635;
+      color: #f0f3f7;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .label {
+      font-size: 12px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      pointer-events: none;
+      backdrop-filter: blur(2px);
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+    }
+
+    .label.accent {
+      background: rgba(68, 140, 220, 0.28);
+      border-color: rgba(120, 200, 255, 0.4);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    @media (max-width: 980px) {
+      #app {
+        grid-template-columns: 1fr;
+      }
+
+      #ui {
+        position: absolute;
+        inset: auto 12px 12px 12px;
+        border: 1px solid #222;
+        border-radius: 16px;
+        background: rgba(21, 25, 36, 0.92);
+        backdrop-filter: blur(6px);
+        max-width: 360px;
+      }
+
+      header {
+        padding: 12px;
+      }
+
+      .panel {
+        max-height: 60vh;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="canvas-wrap">
+      <canvas id="c"></canvas>
+      <div id="toast"></div>
+    </div>
+    <aside id="ui">
+      <header>
+        <h1>Mapa 3D de Stands</h1>
+        <span class="badge">Demo</span>
+        <div class="toolbar">
+          <button class="btn btn-ghost" id="resetBtn">Reiniciar</button>
+          <button class="btn btn-primary" id="saveBtn">Guardar</button>
+        </div>
+      </header>
+      <div class="panel">
+        <div class="section">Leyenda</div>
+        <div class="legend">
+          <span class="pill"><span class="dot" style="background: var(--ok)"></span>Disponible</span>
+          <span class="pill"><span class="dot" style="background: var(--warn)"></span>Reservado</span>
+          <span class="pill"><span class="dot" style="background: var(--bad)"></span>Vendido</span>
+          <span class="pill"><span class="dot" style="background: var(--auction)"></span>Subasta</span>
+        </div>
+
+        <div class="section">Stand seleccionado</div>
+        <div class="meta" id="standMeta">
+          <div class="kv"><label>ID</label><div id="kvId">—</div></div>
+          <div class="kv"><label>Estado</label><div id="kvEstado">—</div></div>
+          <div class="kv"><label>Precio</label><div id="kvPrecio">—</div></div>
+          <div class="kv"><label>Tamaño</label><div id="kvTam">—</div></div>
+        </div>
+
+        <p class="hint">Usa el mouse para orbitar (clic izquierdo), panear (clic derecho) y hacer zoom. Haz clic en un stand para ver opciones.</p>
+
+        <div class="actions">
+          <button id="focusBtn" class="btn btn-ghost disabled">Centrar cámara</button>
+          <button id="buyBtn" class="btn buy disabled">Comprar</button>
+          <button id="auctionBtn" class="btn auction disabled">Unirse a subasta</button>
+        </div>
+
+        <div class="section">Resumen general</div>
+        <div class="meta stats">
+          <div class="kv"><label>Total de stands</label><div id="stTotal">—</div></div>
+          <div class="kv"><label>Disponibles</label><div id="stAvail">—</div></div>
+          <div class="kv"><label>Reservados</label><div id="stReserved">—</div></div>
+          <div class="kv"><label>En subasta</label><div id="stAuction">—</div></div>
+          <div class="kv"><label>Vendidos</label><div id="stSold">—</div></div>
+        </div>
+
+        <div class="section">Filtros rápidos</div>
+        <div class="grid">
+          <button class="btn" data-filter="all">Todos</button>
+          <button class="btn" data-filter="available">Disponibles</button>
+          <button class="btn" data-filter="auction">Subasta</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="overlay" id="modalCompra">
+    <div class="modal">
+      <header>
+        <h3 style="margin:0;font-size:14px">Confirmar compra</h3>
+        <button class="btn btn-ghost" onclick="closeModal('modalCompra')">Cerrar</button>
+      </header>
+      <div class="content">
+        <div class="row"><strong>Stand:</strong> <span id="mcId">—</span></div>
+        <div class="row"><strong>Precio:</strong> <span id="mcPrecio">—</span></div>
+        <div class="row"><label>Nombre / Empresa</label><input id="mcName" placeholder="Tu nombre o empresa" /></div>
+        <div class="row"><label>Email</label><input id="mcMail" placeholder="tucorreo@dominio.com" /></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+          <button class="btn" onclick="closeModal('modalCompra')">Cancelar</button>
+          <button class="btn buy" id="mcConfirm">Pagar (simulado)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="modalSubasta">
+    <div class="modal">
+      <header>
+        <h3 style="margin:0;font-size:14px">Subasta en vivo</h3>
+        <button class="btn btn-ghost" onclick="closeModal('modalSubasta')">Cerrar</button>
+      </header>
+      <div class="content">
+        <div class="row"><strong>Stand:</strong> <span id="sbId">—</span></div>
+        <div class="row"><strong>Precio base:</strong> <span id="sbBase">—</span></div>
+        <div class="row"><strong>Tiempo restante:</strong> <span id="sbTimer">—</span></div>
+        <div class="row"><label>Mi oferta</label>
+          <input id="sbBid" type="number" min="0" step="1" placeholder="Monto" />
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+          <button class="btn" onclick="closeModal('modalSubasta')">Cancelar</button>
+          <button class="btn auction" id="sbOffer">Ofertar</button>
+        </div>
+        <div class="section">Historial de ofertas</div>
+        <div id="sbLog" class="kv" style="max-height:200px;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/three@0.160.0/examples/js/renderers/CSS2DRenderer.js"></script>
+  <script>
+    (() => {
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+      const toast = (msg) => {
+        const t = $('#toast');
+        t.textContent = msg;
+        t.style.display = 'block';
+        clearTimeout(t._to);
+        t._to = setTimeout(() => {
+          t.style.display = 'none';
+        }, 2400);
+      };
+
+      window.closeModal = (id) => {
+        document.getElementById(id).style.display = 'none';
+      };
+      const openModal = (id) => {
+        document.getElementById(id).style.display = 'flex';
+      };
+      const fmt = (n) =>
+        new Intl.NumberFormat('es-PE', {
+          style: 'currency',
+          currency: 'PEN',
+          maximumFractionDigits: 0,
+        }).format(n);
+
+      const STATUS = {
+        AVAILABLE: 'Disponible',
+        RESERVED: 'Reservado',
+        SOLD: 'Vendido',
+        AUCTION: 'Subasta',
+      };
+
+      const COLOR = {
+        [STATUS.AVAILABLE]: 0x18c29c,
+        [STATUS.RESERVED]: 0xf4bf4f,
+        [STATUS.SOLD]: 0xff6b6b,
+        [STATUS.AUCTION]: 0xc084fc,
+      };
+
+      const STORAGE_KEY = 'expo-stands-v1';
+      const saveState = (state) => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const loadState = () => {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY)) || null;
+        } catch (err) {
+          console.warn('No se pudo leer el estado previo', err);
+          return null;
+        }
+      };
+
+      const canvas = document.getElementById('c');
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0c0f16);
+
+      const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 2000);
+      camera.position.set(90, 90, 150);
+      scene.add(camera);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.06;
+      controls.minDistance = 30;
+      controls.maxDistance = 420;
+      controls.maxPolarAngle = Math.PI * 0.49;
+
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x1a2233, 0.85);
+      scene.add(hemi);
+      const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+      dir.position.set(80, 120, 60);
+      dir.castShadow = true;
+      dir.shadow.mapSize.set(2048, 2048);
+      dir.shadow.camera.near = 1;
+      dir.shadow.camera.far = 320;
+      dir.shadow.camera.left = -200;
+      dir.shadow.camera.right = 200;
+      dir.shadow.camera.top = 200;
+      dir.shadow.camera.bottom = -200;
+      scene.add(dir);
+
+      const floorGeo = new THREE.PlaneGeometry(260, 180, 1, 1);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x111827,
+        metalness: 0.1,
+        roughness: 0.9,
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const grid = new THREE.GridHelper(240, 24, 0x233044, 0x1a2233);
+      grid.position.y = 0.01;
+      scene.add(grid);
+
+      const hall = { width: 220, depth: 140 };
+
+      const walkway = new THREE.Mesh(
+        new THREE.BoxGeometry(hall.width - 20, 0.4, 10),
+        new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.2, roughness: 0.45 })
+      );
+      walkway.position.y = 0.2;
+      walkway.receiveShadow = true;
+      scene.add(walkway);
+
+      const stage = new THREE.Mesh(
+        new THREE.BoxGeometry(60, 4, 26),
+        new THREE.MeshStandardMaterial({ color: 0x252f45, metalness: 0.35, roughness: 0.5 })
+      );
+      stage.position.set(0, 2, hall.depth / 2 - 10);
+      stage.castShadow = true;
+      stage.receiveShadow = true;
+      scene.add(stage);
+
+      const stageLabelEl = document.createElement('div');
+      stageLabelEl.className = 'label accent';
+      stageLabelEl.textContent = 'Escenario principal';
+      const stageLabel = new THREE.CSS2DObject(stageLabelEl);
+      stageLabel.position.set(0, 4.2, 0);
+      stage.add(stageLabel);
+
+      const lounge = new THREE.Mesh(
+        new THREE.CylinderGeometry(14, 14, 1.2, 36),
+        new THREE.MeshStandardMaterial({
+          color: 0x255772,
+          metalness: 0.25,
+          roughness: 0.35,
+          transparent: true,
+          opacity: 0.55,
+        })
+      );
+      lounge.position.set(-120, 0.6, -30);
+      lounge.receiveShadow = true;
+      scene.add(lounge);
+
+      const loungeLabelEl = document.createElement('div');
+      loungeLabelEl.className = 'label';
+      loungeLabelEl.textContent = 'Zona lounge';
+      const loungeLabel = new THREE.CSS2DObject(loungeLabelEl);
+      loungeLabel.position.set(0, 1.6, 0);
+      lounge.add(loungeLabel);
+
+      const gate = new THREE.Mesh(
+        new THREE.BoxGeometry(28, 10, 2),
+        new THREE.MeshStandardMaterial({ color: 0x2b354a, metalness: 0.3, roughness: 0.55 })
+      );
+      gate.position.set(0, 5, -hall.depth / 2 - 5);
+      gate.castShadow = true;
+      scene.add(gate);
+
+      const gateLabelEl = document.createElement('div');
+      gateLabelEl.className = 'label accent';
+      gateLabelEl.textContent = 'Entrada principal';
+      const gateLabel = new THREE.CSS2DObject(gateLabelEl);
+      gateLabel.position.set(0, 6, 0);
+      gate.add(gateLabel);
+
+      const entryArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1).normalize(),
+        new THREE.Vector3(0, 1, -hall.depth / 2 - 13),
+        12,
+        0x6ae3ff,
+        3,
+        2
+      );
+      scene.add(entryArrow);
+
+      const labelRenderer = new THREE.CSS2DRenderer();
+      labelRenderer.domElement.style.position = 'absolute';
+      labelRenderer.domElement.style.top = '0';
+      labelRenderer.domElement.style.pointerEvents = 'none';
+      document.getElementById('canvas-wrap').appendChild(labelRenderer.domElement);
+
+      const stands = [];
+
+      function createStand(config) {
+        const geo = new THREE.BoxGeometry(config.w, config.h, config.d);
+        const material = new THREE.MeshStandardMaterial({
+          color: COLOR[config.status],
+          metalness: 0.2,
+          roughness: 0.65,
+        });
+        material.emissive = new THREE.Color(0x000000);
+        const mesh = new THREE.Mesh(geo, material);
+        mesh.position.set(config.x, config.h / 2, config.z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.type = 'stand';
+
+        const edge = new THREE.Mesh(
+          new THREE.BoxGeometry(config.w * 1.01, 0.24, config.d * 1.01),
+          new THREE.MeshStandardMaterial({ color: 0x0a0d14, metalness: 0.1, roughness: 0.8 })
+        );
+        edge.position.y = config.h + 0.12;
+        mesh.add(edge);
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'label';
+        labelEl.textContent = `#${config.id}`;
+        const label = new THREE.CSS2DObject(labelEl);
+        label.position.set(0, config.h + 0.8, 0);
+        mesh.add(label);
+
+        const stand = { ...config, mesh, label };
+        stands.push(stand);
+        scene.add(mesh);
+      }
+
+      function layoutStands() {
+        const rows = 6;
+        const cols = 10;
+        const margin = 6;
+        const width = (hall.width - (cols + 1) * margin) / cols;
+        const depth = (hall.depth - (rows + 1) * margin) / rows;
+        let id = 1;
+        const y = 2.6;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const x = -hall.width / 2 + margin + c * (width + margin) + width / 2;
+            const z = -hall.depth / 2 + margin + r * (depth + margin) + depth / 2;
+            const h = y + Math.random() * 2.2;
+            const price = 2500 + Math.round((rows - r) * 220 + Math.random() * 420);
+            const isAuction = Math.random() < 0.18;
+            const status = isAuction ? STATUS.AUCTION : STATUS.AVAILABLE;
+            createStand({ id: id++, x, z, w: width, d: depth, h, price, status, isAuction });
+          }
+        }
+      }
+
+      function setStandColor(mesh, status) {
+        mesh.material.color.setHex(COLOR[status] || COLOR[STATUS.AVAILABLE]);
+      }
+
+      const saved = loadState();
+      layoutStands();
+      if (saved && Array.isArray(saved.stands)) {
+        for (const snap of saved.stands) {
+          const item = stands.find((s) => s.id === snap.id);
+          if (!item) continue;
+          item.status = snap.status;
+          item.price = snap.price;
+          item.isAuction = snap.isAuction;
+          item.auction = snap.auction || null;
+          setStandColor(item.mesh, item.status);
+        }
+      }
+
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      let hovered = null;
+      let selected = null;
+      let cameraAnimation = null;
+
+      function onResize() {
+        const wrap = document.getElementById('canvas-wrap');
+        const { clientWidth: w, clientHeight: h } = wrap;
+        renderer.setSize(w, h, false);
+        labelRenderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+      window.addEventListener('resize', onResize);
+      onResize();
+
+      function pick(mx, my) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((mx - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((my - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(stands.map((s) => s.mesh));
+        return intersects[0]?.object || null;
+      }
+
+      canvas.addEventListener('mousemove', (e) => {
+        const hit = pick(e.clientX, e.clientY);
+        if (hit !== hovered) {
+          if (hovered) {
+            hovered.scale.set(1, 1, 1);
+            hovered.material.emissive.setHex(0x000000);
+          }
+          hovered = hit;
+          if (hovered) {
+            hovered.scale.set(1.03, 1.03, 1.03);
+            hovered.material.emissive.setHex(0x112236);
+          }
+        }
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        if (hovered) {
+          hovered.scale.set(1, 1, 1);
+          hovered.material.emissive.setHex(0x000000);
+          hovered = null;
+        }
+      });
+
+      canvas.addEventListener('click', (e) => {
+        const hit = pick(e.clientX, e.clientY);
+        if (hit) {
+          selected = stands.find((s) => s.mesh === hit) || null;
+          updateSelectedUI();
+        } else if (selected) {
+          selected = null;
+          updateSelectedUI();
+        }
+      });
+
+      const idEl = document.getElementById('kvId');
+      const esEl = document.getElementById('kvEstado');
+      const prEl = document.getElementById('kvPrecio');
+      const tmEl = document.getElementById('kvTam');
+      const buyBtn = document.getElementById('buyBtn');
+      const auctionBtn = document.getElementById('auctionBtn');
+      const focusBtn = document.getElementById('focusBtn');
+      const statsEls = {
+        total: document.getElementById('stTotal'),
+        available: document.getElementById('stAvail'),
+        reserved: document.getElementById('stReserved'),
+        auction: document.getElementById('stAuction'),
+        sold: document.getElementById('stSold'),
+      };
+
+      function updateStats() {
+        const total = stands.length;
+        const available = stands.filter((s) => s.status === STATUS.AVAILABLE).length;
+        const reserved = stands.filter((s) => s.status === STATUS.RESERVED).length;
+        const auction = stands.filter((s) => s.status === STATUS.AUCTION).length;
+        const sold = stands.filter((s) => s.status === STATUS.SOLD).length;
+        statsEls.total.textContent = total;
+        statsEls.available.textContent = available;
+        statsEls.reserved.textContent = reserved;
+        statsEls.auction.textContent = auction;
+        statsEls.sold.textContent = sold;
+      }
+
+      function updateSelectedUI() {
+        if (!selected) {
+          idEl.textContent = esEl.textContent = prEl.textContent = tmEl.textContent = '—';
+          buyBtn.classList.add('disabled');
+          auctionBtn.classList.add('disabled');
+          focusBtn.classList.add('disabled');
+          updateStats();
+          return;
+        }
+        idEl.textContent = `#${selected.id}`;
+        esEl.textContent = selected.status;
+        prEl.textContent = fmt(selected.price);
+        tmEl.textContent = `${selected.w.toFixed(1)}m × ${selected.d.toFixed(1)}m`;
+
+        const canBuy = selected.status === STATUS.AVAILABLE;
+        const canAuction = selected.status === STATUS.AUCTION;
+        buyBtn.classList.toggle('disabled', !canBuy);
+        auctionBtn.classList.toggle('disabled', !canAuction);
+        focusBtn.classList.remove('disabled');
+
+        document.getElementById('mcId').textContent = `#${selected.id}`;
+        document.getElementById('mcPrecio').textContent = fmt(selected.price);
+        document.getElementById('sbId').textContent = `#${selected.id}`;
+        document.getElementById('sbBase').textContent = fmt(selected.price);
+        updateStats();
+      }
+
+      function animateCamera(toPos, toTarget, duration = 900) {
+        const fromPos = camera.position.clone();
+        const fromTarget = controls.target.clone();
+        const start = performance.now();
+        if (cameraAnimation) {
+          cancelAnimationFrame(cameraAnimation);
+          cameraAnimation = null;
+        }
+        function step(now) {
+          const t = Math.min(1, (now - start) / duration);
+          const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          camera.position.lerpVectors(fromPos, toPos, eased);
+          controls.target.lerpVectors(fromTarget, toTarget, eased);
+          controls.update();
+          if (t < 1) {
+            cameraAnimation = requestAnimationFrame(step);
+          } else {
+            cameraAnimation = null;
+          }
+        }
+        cameraAnimation = requestAnimationFrame(step);
+      }
+
+      focusBtn.addEventListener('click', () => {
+        if (!selected) return;
+        const target = new THREE.Vector3(selected.x, selected.h / 2, selected.z);
+        const offset = new THREE.Vector3(36, Math.max(28, selected.h * 2.8), 36);
+        const destination = target.clone().add(offset);
+        animateCamera(destination, target, 950);
+      });
+
+      $$('.grid .btn').forEach((button) =>
+        button.addEventListener('click', () => {
+          const filter = button.dataset.filter;
+          for (const s of stands) {
+            const visible =
+              filter === 'all' ||
+              (filter === 'available' && s.status === STATUS.AVAILABLE) ||
+              (filter === 'auction' && s.status === STATUS.AUCTION);
+            s.mesh.visible = visible;
+            s.label.element.style.display = visible ? 'block' : 'none';
+          }
+        })
+      );
+
+      buyBtn.addEventListener('click', () => {
+        if (!selected) return;
+        openModal('modalCompra');
+      });
+
+      document.getElementById('mcConfirm').addEventListener('click', () => {
+        if (!selected) return;
+        const name = document.getElementById('mcName').value.trim();
+        const mail = document.getElementById('mcMail').value.trim();
+        if (!name || !mail) {
+          toast('Completa tu nombre y correo.');
+          return;
+        }
+        selected.status = STATUS.SOLD;
+        setStandColor(selected.mesh, selected.status);
+        updateSelectedUI();
+        saveSnapshot();
+        closeModal('modalCompra');
+        toast(`¡Compra realizada! Stand #${selected.id} marcado como vendido.`);
+      });
+
+      let auctionTimer = null;
+      function resetAuctionTimer() {
+        if (auctionTimer) {
+          clearInterval(auctionTimer);
+          auctionTimer = null;
+        }
+      }
+
+      function ensureAuctionState(item) {
+        if (!item.auction) {
+          const endAt = Date.now() + (1000 * 60 * 2 + Math.floor(Math.random() * 30000));
+          item.auction = { endAt, top: item.price, bids: [] };
+        }
+      }
+
+      function renderAuctionState(item) {
+        if (!item || !item.auction) return;
+        const log = document.getElementById('sbLog');
+        log.innerHTML = `<div><strong>Mejor oferta:</strong> ${fmt(item.auction.top)}</div>` +
+          item.auction.bids
+            .slice()
+            .reverse()
+            .map(
+              (bid) =>
+                `<div style="margin-top:6px">${new Date(bid.t).toLocaleTimeString()} — <strong>${fmt(bid.v)}</strong> por ${bid.n}</div>`
+            )
+            .join('');
+      }
+
+      function startAuctionCountdown(item) {
+        const timerEl = document.getElementById('sbTimer');
+        resetAuctionTimer();
+        auctionTimer = setInterval(() => {
+          const remaining = Math.max(0, item.auction.endAt - Date.now());
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          if (remaining <= 0) {
+            clearInterval(auctionTimer);
+            auctionTimer = null;
+            if (item.auction.bids.length) {
+              item.status = STATUS.SOLD;
+              setStandColor(item.mesh, item.status);
+              toast(`Subasta terminada. Stand #${item.id} adjudicado en ${fmt(item.auction.top)}.`);
+            } else {
+              toast('Subasta terminada sin ofertas.');
+            }
+            saveSnapshot();
+            updateSelectedUI();
+            closeModal('modalSubasta');
+          }
+        }, 300);
+      }
+
+      auctionBtn.addEventListener('click', () => {
+        if (!selected) return;
+        ensureAuctionState(selected);
+        renderAuctionState(selected);
+        startAuctionCountdown(selected);
+        document.getElementById('sbBid').value = '';
+        openModal('modalSubasta');
+      });
+
+      document.getElementById('sbOffer').addEventListener('click', () => {
+        if (!selected || !selected.auction) return;
+        const bidder = document.getElementById('mcName').value.trim() || 'Anónimo';
+        const value = parseFloat(document.getElementById('sbBid').value);
+        if (!Number.isFinite(value) || value <= selected.auction.top) {
+          toast('La oferta debe superar a la actual.');
+          return;
+        }
+        selected.auction.top = value;
+        selected.auction.bids.push({ v: value, n: bidder, t: Date.now() });
+        renderAuctionState(selected);
+        toast('Oferta registrada ✅');
+        saveSnapshot();
+      });
+
+      function saveSnapshot() {
+        const snap = {
+          stands: stands.map((s) => ({
+            id: s.id,
+            price: s.price,
+            status: s.status,
+            isAuction: s.isAuction,
+            auction: s.auction || null,
+          })),
+        };
+        saveState(snap);
+        updateStats();
+      }
+
+      document.getElementById('saveBtn').addEventListener('click', () => {
+        saveSnapshot();
+        toast('Estado guardado en este navegador.');
+      });
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+      });
+
+      function tick() {
+        controls.update();
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+        requestAnimationFrame(tick);
+      }
+      tick();
+
+      updateSelectedUI();
+    })();
+  </script>
+</body>
+</html>
